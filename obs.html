@@ -1,0 +1,77 @@
+<!doctype html>
+.meta .txt{color:#fff}
+</style>
+</head>
+<body>
+<div class="stage"><div id="player" class="player"><div id="media-wrap"></div><div class="meta"><img id="sender-pic" src=""/><div class="txt"><strong id="sender-name"></strong><div id="caption" style="font-size:15px"></div></div></div></div></div>
+
+
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+<script>
+// Paste the SAME firebaseConfig as in index.html
+const firebaseConfig = {};
+if(Object.keys(firebaseConfig).length===0){ document.body.innerHTML = '<div style="color:white;padding:20px">Erreur: colle la firebaseConfig dans obs.html (voir README)</div>'; throw 'no cfg'}
+const app = firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+
+
+// read token from query string
+const params = new URLSearchParams(location.search);
+const token = params.get('token');
+if(!token){console.warn('No token in URL');}
+
+
+async function findUserByToken(t){
+const snap = await db.collection('users').where('obsToken','==',t).get();
+if(snap.empty) return null; return {id:snap.docs[0].id, ...snap.docs[0].data()}
+}
+
+
+async function run(){
+const me = await findUserByToken(token);
+if(!me){console.warn('Token invalide'); return}
+// listen for unread messages
+db.collection('messages').where('to','==',me.id).where('played','==',false).orderBy('createdAt','asc').onSnapshot(async snap=>{
+if(snap.empty) return;
+for(const doc of snap.docs){
+const m = doc.data();
+await playMessage(m, doc.id, me);
+}
+})
+}
+
+
+function createMediaEl(mime, url){
+if(mime && mime.startsWith('audio')){
+const a = document.createElement('audio'); a.controls=false; a.autoplay=true; a.src=url; return a;
+} else {
+const v = document.createElement('video'); v.controls=false; v.autoplay=true; v.src=url; v.playsInline=true; return v;
+}
+}
+
+
+async function playMessage(m, docId, me){
+const wrap = document.getElementById('media-wrap'); wrap.innerHTML='';
+const el = createMediaEl(m.mime||'video/mp4', m.mediaUrl);
+wrap.appendChild(el);
+document.getElementById('sender-pic').src = m.senderPhoto || 'https://picsum.photos/seed/sender/128';
+document.getElementById('sender-name').textContent = m.senderName || 'Unknown';
+document.getElementById('caption').textContent = m.text || '';
+// show with animation
+const player = document.getElementById('player'); player.classList.add('show');
+// wait until end
+try{
+await new Promise(resolve=>{ el.onended = ()=>resolve(); el.onerror=()=>resolve(); /* fallback */ setTimeout(()=>resolve(), (m.mime&&m.mime.startsWith('audio'))?15000:60000) });
+}catch(e){}
+// hide
+player.classList.remove('show');
+// mark played in firestore
+await db.collection('messages').doc(docId).update({played:true, playedAt:Date.now()});
+}
+
+
+run();
+</script>
+</body>
+</html>
