@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>ScotchyShare — Admin / Send</title>
+<style>
+:root{--bg:#0f1115;--card:#121419;--accent:#7c93ff;--muted:#9aa3b2;--text:#eef2ff}
+body{margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,Arial;background:linear-gradient(180deg,#07080a,#0f1115);color:var(--text)}
+.wrap{max-width:980px;margin:28px auto;padding:20px}
+.card{background:var(--card);padding:16px;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.6);}
+input,select,textarea,button{font:inherit;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,.06);background:transparent;color:var(--text)}
+.row{display:flex;gap:10px;align-items:center}
+img.profile{width:40px;height:40px;border-radius:50%;object-fit:cover}
+.small{font-size:13px;color:var(--muted)}
+.center{display:flex;align-items:center;gap:10px}
+.hidden{display:none}
+.video-preview{max-width:640px;width:100%;border-radius:8px;overflow:hidden}
+.btn{background:linear-gradient(90deg,var(--accent),#76e0c2);color:#021;cursor:pointer}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>ScotchyShare — prototype</h1>
+<div class="card" id="firebase-setup">
+<h3>Étape 1 — Configuration Firebase</h3>
+<p class="small">Crée un projet Firebase, active Firestore (mode production), et Storage. Puis copie ta config Web ci-dessous.</p>
+<textarea id="fb-config" style="width:100%;height:120px" placeholder="Paste Firebase config object (firebaseConfig) ici"></textarea>
+<p class="small">Exemple (remplace les valeurs) : <code>{ apiKey: '...', authDomain: '...', projectId: '...', storageBucket: '...' }</code></p>
+<button id="btn-init" class="btn">Initialiser Firebase</button>
+<p id="fb-status" class="small"></p>
+</div>
+
+
+<div class="card hidden" id="admin-panel">
+<h3>Admin — Créer / Gérer comptes</h3>
+<p class="small">Ton code admin (défini localement ci-dessous) est nécessaire pour ouvrir ce panneau. Tu peux l'éditer dans la variable <code>ADMIN_SECRET</code> du code.</p>
+<div class="row">
+<input id="admin-code" placeholder="Code admin pour ouvrir le panneau"/>
+<button id="open-admin" class="btn">Ouvrir</button>
+</div>
+<div id="admin-area" class="hidden">
+<h4>Créer un compte</h4>
+<div class="row">
+<input id="new-username" placeholder="username (ex: scotchy)"/>
+<input id="new-display" placeholder="Nom affiché"/>
+<input id="new-password" placeholder="mot de passe"/>
+<input id="new-photo" placeholder="Url photo (optionnel)"/>
+<button id="create-user" class="btn">Créer</button>
+</div>
+<p class="small">Liste des comptes :</p>
+<div id="users-list" style="display:grid;grid-template-columns:1fr 1fr;gap:8px"></div>
+</div>
+</div>
+
+
+<div class="card" id="auth-card">
+<h3>Se connecter</h3>
+</html>
