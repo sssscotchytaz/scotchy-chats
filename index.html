@@ -1,57 +1,130 @@
 <!doctype html>
-document.getElementById('auth-card').classList.add('hidden');
-document.getElementById('main-ui').classList.remove('hidden');
-document.getElementById('me-photo').src = user.photo||('https://picsum.photos/seed/'+user.username+'/96');
-document.getElementById('me-name').textContent = user.display||user.username;
-document.getElementById('me-username').textContent = '@'+user.username;
-document.getElementById('my-obs-token').value = user.obsToken||'';
-loadUsersList();
-// watch own sent messages
-db.collection('messages').where('from','==',user.id).orderBy('createdAt','desc').limit(20).onSnapshot(s=>{
-const el = document.getElementById('sent-list'); el.innerHTML='';
-s.forEach(doc=>{const m=doc.data(); el.innerHTML += `<div>${new Date(m.createdAt).toLocaleString()} → ${m.to}</div>`})
-})
-}
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>ScotchyShare — Admin / Send</title>
+  <style>
+    :root{--bg:#0f1115;--card:#121419;--accent:#7c93ff;--muted:#9aa3b2;--text:#eef2ff}
+    body{margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,Arial;background:linear-gradient(180deg,#07080a,#0f1115);color:var(--text)}
+    .wrap{max-width:980px;margin:28px auto;padding:20px}
+    .card{background:var(--card);padding:16px;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.6);}
+    input,select,textarea,button{font:inherit;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,.06);background:transparent;color:var(--text)}
+    .row{display:flex;gap:10px;align-items:center}
+    img.profile{width:40px;height:40px;border-radius:50%;object-fit:cover}
+    .small{font-size:13px;color:var(--muted)}
+    .center{display:flex;align-items:center;gap:10px}
+    .hidden{display:none}
+    .video-preview{max-width:640px;width:100%;border-radius:8px;overflow:hidden}
+    .btn{background:linear-gradient(90deg,var(--accent),#76e0c2);color:#021;cursor:pointer}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>ScotchyShare — prototype</h1>
+    <div class="card" id="firebase-setup">
+      <h3>Étape 1 — Configuration Firebase</h3>
+      <p class="small">Crée un projet Firebase, active Firestore (mode production), et Storage. Puis copie ta config Web ci-dessous.</p>
+      <textarea id="fb-config" style="width:100%;height:120px" placeholder="Colle ici l'objet JSON firebaseConfig"></textarea>
+      <p class="small">Exemple (remplace les valeurs) : <code>{ "apiKey": "...", "authDomain": "...", "projectId": "...", "storageBucket": "..." }</code></p>
+      <button id="btn-init" class="btn">Initialiser Firebase</button>
+      <p id="fb-status" class="small"></p>
+    </div>
 
+    <div class="card hidden" id="admin-panel">
+      <h3>Admin — Créer / Gérer comptes</h3>
+      <p class="small">Code admin défini dans la variable <code>ADMIN_SECRET</code> du code.</p>
+      <div class="row">
+        <input id="admin-code" placeholder="Code admin"/>
+        <button id="open-admin" class="btn">Ouvrir</button>
+      </div>
+      <div id="admin-area" class="hidden">
+        <h4>Créer un compte</h4>
+        <div class="row">
+          <input id="new-username" placeholder="username (ex: scotchy)"/>
+          <input id="new-display" placeholder="Nom affiché"/>
+          <input id="new-password" placeholder="mot de passe"/>
+          <input id="new-photo" placeholder="Url photo (optionnel)"/>
+          <button id="create-user" class="btn">Créer</button>
+        </div>
+        <p class="small">Liste des comptes :</p>
+        <div id="users-list" style="display:grid;grid-template-columns:1fr 1fr;gap:8px"></div>
+      </div>
+    </div>
 
-document.getElementById('regen-token').onclick = async ()=>{
-if(!currentUser) return; const tok = makeToken(); await db.collection('users').doc(currentUser.id).update({obsToken:tok}); currentUser.obsToken=tok; localStorage.setItem('scotchy_user',JSON.stringify(currentUser)); document.getElementById('my-obs-token').value=tok; alert('Token régénéré'); loadUsersList();
-}
+    <div class="card" id="auth-card">
+      <h3>Se connecter</h3>
+      <div class="row">
+        <input id="login-username" placeholder="Nom d'utilisateur"/>
+        <input id="login-password" placeholder="Mot de passe" type="password"/>
+        <button id="btn-login" class="btn">Se connecter</button>
+      </div>
+      <p class="small">(Les comptes sont créés par l'admin)</p>
+    </div>
 
+    <div class="card hidden" id="main-ui">
+      <div class="row" style="justify-content:space-between;align-items:center">
+        <div class="center"><img id="me-photo" class="profile"/><div><strong id="me-name"></strong><div class="small" id="me-username"></div></div></div>
+        <div class="center"><button id="logout">Se déconnecter</button></div>
+      </div>
+      <hr/>
+      <h4>Envoyer une vidéo / audio</h4>
+      <div class="card">
+        <input id="file-input" type="file" accept="video/*,audio/*"/>
+        <input id="url-input" placeholder="https://... (mp4 / mp3)" />
+        <textarea id="text-input" placeholder="Texte (obligatoire)" style="width:100%;height:80px"></textarea>
+        <div class="row">
+          <label class="small">Destinataire :</label>
+          <select id="recipient-select"></select>
+          <button id="btn-send" class="btn">Envoyer</button>
+        </div>
+      </div>
+      <h4>Mon token OBS</h4>
+      <div class="row"><input id="my-obs-token" readonly/><button id="regen-token">Regénérer</button></div>
+      <h4>Mes messages envoyés</h4>
+      <div id="sent-list" class="small"></div>
+    </div>
+  </div>
 
-// ---------------------- SEND MESSAGE (upload or link) ----------------------
-// Drag & drop
-const fileInput = document.getElementById('file-input');
-fileInput.addEventListener('change', ()=>{});
+  <!-- Firebase scripts -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-storage-compat.js"></script>
+  <script>
+    const ADMIN_SECRET = 'SCOTCHY_ADMIN_2025';
+    function sha256hex(str){const enc=new TextEncoder();return crypto.subtle.digest('SHA-256',enc.encode(str)).then(buf=>Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join(''))}
+    function uid(){return 'u_'+Math.random().toString(36).slice(2,10)}
+    function makeToken(){return Math.random().toString(36).slice(2,14)+Math.random().toString(36).slice(2,8)}
+    let app, db, storage; let currentUser=null;
 
+    document.getElementById('btn-init').onclick = async ()=>{
+      const cfgText=document.getElementById('fb-config').value.trim();
+      if(!cfgText){alert('Colle ta config Firebase JSON');return}
+      let cfg=null;try{cfg=JSON.parse(cfgText)}catch(e){alert('JSON invalide');return}
+      app=firebase.initializeApp(cfg);db=firebase.firestore();storage=firebase.storage();
+      document.getElementById('fb-status').textContent='Firebase initialisé ✅';
+      document.getElementById('admin-panel').classList.remove('hidden');
+      const saved=localStorage.getItem('scotchy_user');if(saved){currentUser=JSON.parse(saved);await afterLogin(currentUser)}
+      loadUsersList();
+    }
 
-document.getElementById('btn-send').onclick = async ()=>{
-if(!currentUser){alert('Connecte-toi');return}
-const text = document.getElementById('text-input').value.trim();
-const toId = document.getElementById('recipient-select').value;
-const url = document.getElementById('url-input').value.trim();
-const f = fileInput.files[0];
-if(!text||!toId){alert('Texte et destinataire obligatoires');return}
-let mediaUrl = '';
-let mime = '';
-if(f){
-const ref = storage.ref().child('uploads/'+Date.now()+'_'+f.name);
-const task = await ref.put(f);
-mediaUrl = await ref.getDownloadURL();
-mime = f.type;
-} else if(url){
-mediaUrl = url; // remote link
-mime = url.split('.').pop().includes('mp3')? 'audio/mpeg' : 'video/mp4';
-} else {alert('Fichier ou lien requis');return}
-const message = {from:currentUser.id,to:toId,mediaUrl,text, mime, createdAt:Date.now(), played:false, senderPhoto:currentUser.photo||'', senderName:currentUser.display||currentUser.username}
-await db.collection('messages').add(message);
-alert('Envoyé ✅');
-document.getElementById('text-input').value=''; document.getElementById('url-input').value=''; fileInput.value='';
-}
+    document.getElementById('open-admin').onclick=()=>{if(document.getElementById('admin-code').value===ADMIN_SECRET){document.getElementById('admin-area').classList.remove('hidden')}else alert('Code admin incorrect')}
 
+    async function loadUsersList(){if(!db)return;const snap=await db.collection('users').get();const list=document.getElementById('users-list');list.innerHTML='';const sel=document.getElementById('recipient-select');sel.innerHTML='';snap.forEach(doc=>{const d=doc.data();const el=document.createElement('div');el.className='row';el.innerHTML=`<img src="${d.photo||'https://picsum.photos/seed/'+d.username+'/96'}" class="profile"/> <div><strong>${d.display||d.username}</strong><div class='small'>${d.username}</div></div> <div style='margin-left:auto' class='small'>OBS token: <code style='font-size:12px'>${d.obsToken||''}</code></div>`;list.appendChild(el);const opt=document.createElement('option');opt.value=doc.id;opt.textContent=d.display||d.username;sel.appendChild(opt);})}
 
-// periodically refresh recipients (for new accounts)
-setInterval(()=>{ if(db) loadUsersList() },5000);
-</script>
+    document.getElementById('create-user').onclick=async()=>{const username=document.getElementById('new-username').value.trim();const display=document.getElementById('new-display').value.trim()||username;const password=document.getElementById('new-password').value||Math.random().toString(36).slice(2,8);const photo=document.getElementById('new-photo').value.trim()||'';if(!username||!password){alert('username et password requis');return}const uidLocal=uid();const salt=Math.random().toString(36).slice(2,10);const hash=await sha256hex(salt+password);const obsToken=makeToken();await db.collection('users').doc(uidLocal).set({username,display,photo,passwordHash:hash,salt,obsToken,createdAt:Date.now()});alert(`Compte créé: username=${username} | password=${password} | obs-token=${obsToken}`);loadUsersList()}
+
+    document.getElementById('btn-login').onclick=async()=>{const username=document.getElementById('login-username').value.trim();const password=document.getElementById('login-password').value||'';if(!username||!password){alert('username & password requis');return}const snap=await db.collection('users').where('username','==',username).get();if(snap.empty){alert('Utilisateur introuvable');return}const doc=snap.docs[0];const d=doc.data();const hash=await sha256hex(d.salt+password);if(hash!==d.passwordHash){alert('Mot de passe incorrect');return}currentUser={id:doc.id,...d};localStorage.setItem('scotchy_user',JSON.stringify(currentUser));await afterLogin(currentUser)}
+
+    document.getElementById('logout').onclick=()=>{localStorage.removeItem('scotchy_user');location.reload()}
+
+    async function afterLogin(user){document.getElementById('auth-card').classList.add('hidden');document.getElementById('main-ui').classList.remove('hidden');document.getElementById('me-photo').src=user.photo||('https://picsum.photos/seed/'+user.username+'/96');document.getElementById('me-name').textContent=user.display||user.username;document.getElementById('me-username').textContent='@'+user.username;document.getElementById('my-obs-token').value=user.obsToken||'';loadUsersList();db.collection('messages').where('from','==',user.id).orderBy('createdAt','desc').limit(20).onSnapshot(s=>{const el=document.getElementById('sent-list');el.innerHTML='';s.forEach(doc=>{const m=doc.data();el.innerHTML+=`<div>${new Date(m.createdAt).toLocaleString()} → ${m.to}</div>`})})}
+
+    document.getElementById('regen-token').onclick=async()=>{if(!currentUser)return;const tok=makeToken();await db.collection('users').doc(currentUser.id).update({obsToken:tok});currentUser.obsToken=tok;localStorage.setItem('scotchy_user',JSON.stringify(currentUser));document.getElementById('my-obs-token').value=tok;alert('Token régénéré');loadUsersList()}
+
+    document.getElementById('btn-send').onclick=async()=>{if(!currentUser){alert('Connecte-toi');return}const text=document.getElementById('text-input').value.trim();const toId=document.getElementById('recipient-select').value;const url=document.getElementById('url-input').value.trim();const f=document.getElementById('file-input').files[0];if(!text||!toId){alert('Texte et destinataire obligatoires');return}let mediaUrl='';let mime='';if(f){const ref=storage.ref().child('uploads/'+Date.now()+'_'+f.name);const task=await ref.put(f);mediaUrl=await ref.getDownloadURL();mime=f.type}else if(url){mediaUrl=url;mime=url.split('.').pop().includes('mp3')?'audio/mpeg':'video/mp4'}else{alert('Fichier ou lien requis');return}const message={from:currentUser.id,to:toId,mediaUrl,text,mime,createdAt:Date.now(),played:false,senderPhoto:currentUser.photo||'',senderName:currentUser.display||currentUser.username};await db.collection('messages').add(message);alert('Envoyé ✅');document.getElementById('text-input').value='';document.getElementById('url-input').value='';document.getElementById('file-input').value=''}
+
+    setInterval(()=>{if(db)loadUsersList()},5000);
+  </script>
 </body>
 </html>
