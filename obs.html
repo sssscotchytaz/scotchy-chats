@@ -10,7 +10,16 @@
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
 <script>
 // Paste the SAME firebaseConfig as in index.html
-const firebaseConfig = {};
+const firebaseConfig = {
+  "apiKey": "AIzaSyAX08SxmUGXHKmiQZuFcXXU5QFkvs_R7EY",
+  "authDomain": "scotchyshare.firebaseapp.com",
+  "projectId": "scotchyshare",
+  "storageBucket": "scotchyshare.firebasestorage.app",
+  "messagingSenderId": "517864806624",
+  "appId": "1:517864806624:web:1edc50a07653e09b9b5885",
+  "measurementId": "G-0PL2JJ2B65"
+}
+;
 if(Object.keys(firebaseConfig).length===0){ document.body.innerHTML = '<div style="color:white;padding:20px">Erreur: colle la firebaseConfig dans obs.html (voir README)</div>'; throw 'no cfg'}
 const app = firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
