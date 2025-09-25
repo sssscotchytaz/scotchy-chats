@@ -1,59 +1,57 @@
 <!doctype html>
-<html lang="fr">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>ScotchyShare — Admin / Send</title>
-<style>
-:root{--bg:#0f1115;--card:#121419;--accent:#7c93ff;--muted:#9aa3b2;--text:#eef2ff}
-body{margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,Arial;background:linear-gradient(180deg,#07080a,#0f1115);color:var(--text)}
-.wrap{max-width:980px;margin:28px auto;padding:20px}
-.card{background:var(--card);padding:16px;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.6);}
-input,select,textarea,button{font:inherit;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,.06);background:transparent;color:var(--text)}
-.row{display:flex;gap:10px;align-items:center}
-img.profile{width:40px;height:40px;border-radius:50%;object-fit:cover}
-.small{font-size:13px;color:var(--muted)}
-.center{display:flex;align-items:center;gap:10px}
-.hidden{display:none}
-.video-preview{max-width:640px;width:100%;border-radius:8px;overflow:hidden}
-.btn{background:linear-gradient(90deg,var(--accent),#76e0c2);color:#021;cursor:pointer}
-</style>
-</head>
-<body>
-<div class="wrap">
-<h1>ScotchyShare — prototype</h1>
-<div class="card" id="firebase-setup">
-<h3>Étape 1 — Configuration Firebase</h3>
-<p class="small">Crée un projet Firebase, active Firestore (mode production), et Storage. Puis copie ta config Web ci-dessous.</p>
-<textarea id="fb-config" style="width:100%;height:120px" placeholder="Paste Firebase config object (firebaseConfig) ici"></textarea>
-<p class="small">Exemple (remplace les valeurs) : <code>{ apiKey: '...', authDomain: '...', projectId: '...', storageBucket: '...' }</code></p>
-<button id="btn-init" class="btn">Initialiser Firebase</button>
-<p id="fb-status" class="small"></p>
-</div>
+document.getElementById('auth-card').classList.add('hidden');
+document.getElementById('main-ui').classList.remove('hidden');
+document.getElementById('me-photo').src = user.photo||('https://picsum.photos/seed/'+user.username+'/96');
+document.getElementById('me-name').textContent = user.display||user.username;
+document.getElementById('me-username').textContent = '@'+user.username;
+document.getElementById('my-obs-token').value = user.obsToken||'';
+loadUsersList();
+// watch own sent messages
+db.collection('messages').where('from','==',user.id).orderBy('createdAt','desc').limit(20).onSnapshot(s=>{
+const el = document.getElementById('sent-list'); el.innerHTML='';
+s.forEach(doc=>{const m=doc.data(); el.innerHTML += `<div>${new Date(m.createdAt).toLocaleString()} → ${m.to}</div>`})
+})
+}
 
 
-<div class="card hidden" id="admin-panel">
-<h3>Admin — Créer / Gérer comptes</h3>
-<p class="small">Ton code admin (défini localement ci-dessous) est nécessaire pour ouvrir ce panneau. Tu peux l'éditer dans la variable <code>ADMIN_SECRET</code> du code.</p>
-<div class="row">
-<input id="admin-code" placeholder="Code admin pour ouvrir le panneau"/>
-<button id="open-admin" class="btn">Ouvrir</button>
-</div>
-<div id="admin-area" class="hidden">
-<h4>Créer un compte</h4>
-<div class="row">
-<input id="new-username" placeholder="username (ex: scotchy)"/>
-<input id="new-display" placeholder="Nom affiché"/>
-<input id="new-password" placeholder="mot de passe"/>
-<input id="new-photo" placeholder="Url photo (optionnel)"/>
-<button id="create-user" class="btn">Créer</button>
-</div>
-<p class="small">Liste des comptes :</p>
-<div id="users-list" style="display:grid;grid-template-columns:1fr 1fr;gap:8px"></div>
-</div>
-</div>
+document.getElementById('regen-token').onclick = async ()=>{
+if(!currentUser) return; const tok = makeToken(); await db.collection('users').doc(currentUser.id).update({obsToken:tok}); currentUser.obsToken=tok; localStorage.setItem('scotchy_user',JSON.stringify(currentUser)); document.getElementById('my-obs-token').value=tok; alert('Token régénéré'); loadUsersList();
+}
 
 
-<div class="card" id="auth-card">
-<h3>Se connecter</h3>
+// ---------------------- SEND MESSAGE (upload or link) ----------------------
+// Drag & drop
+const fileInput = document.getElementById('file-input');
+fileInput.addEventListener('change', ()=>{});
+
+
+document.getElementById('btn-send').onclick = async ()=>{
+if(!currentUser){alert('Connecte-toi');return}
+const text = document.getElementById('text-input').value.trim();
+const toId = document.getElementById('recipient-select').value;
+const url = document.getElementById('url-input').value.trim();
+const f = fileInput.files[0];
+if(!text||!toId){alert('Texte et destinataire obligatoires');return}
+let mediaUrl = '';
+let mime = '';
+if(f){
+const ref = storage.ref().child('uploads/'+Date.now()+'_'+f.name);
+const task = await ref.put(f);
+mediaUrl = await ref.getDownloadURL();
+mime = f.type;
+} else if(url){
+mediaUrl = url; // remote link
+mime = url.split('.').pop().includes('mp3')? 'audio/mpeg' : 'video/mp4';
+} else {alert('Fichier ou lien requis');return}
+const message = {from:currentUser.id,to:toId,mediaUrl,text, mime, createdAt:Date.now(), played:false, senderPhoto:currentUser.photo||'', senderName:currentUser.display||currentUser.username}
+await db.collection('messages').add(message);
+alert('Envoyé ✅');
+document.getElementById('text-input').value=''; document.getElementById('url-input').value=''; fileInput.value='';
+}
+
+
+// periodically refresh recipients (for new accounts)
+setInterval(()=>{ if(db) loadUsersList() },5000);
+</script>
+</body>
 </html>
